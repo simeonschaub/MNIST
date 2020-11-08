@@ -49,12 +49,6 @@ function prepare_imgs(_imgs)
 end
 
 let
-imgs = Flux.Data.MNIST.images()
-labels = Flux.Data.MNIST.labels()
-
-idx = shuffle(eachindex(imgs))
-idx_train, idx_test = idx[1:50000], idx[50001:end]
-
 imgs_train = Flux.Data.MNIST.images()
 labels_train = Flux.Data.MNIST.labels()
 ds_train = (prepare_imgs(imgs_train), Flux.onehotbatch(labels_train, 0:9))
@@ -65,7 +59,7 @@ labels_test = Flux.Data.MNIST.labels(:test)
 ds_test = (prepare_imgs(imgs_test), Flux.onehotbatch(labels_test, 0:9))
 global ds_test = DataLoader(ds_test, batchsize=128, shuffle=false)
 
-global n1, n2 = size(first(imgs))
+global n1, n2 = size(first(imgs_train))
 end
 
 n_hidden, m = 128, 10

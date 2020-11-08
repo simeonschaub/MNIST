@@ -11,20 +11,43 @@ function accuracy(ŷ, y::Flux.OneHotMatrix)
     end / size(ŷ, 2)
 end
 
-function step!(model, loss_function, opt)
+_view(x, i...) = view(x, i...)
+function _view(x::Flux.OneHotMatrix, ::Colon, i)
+    data = view(x.data, i)
+    return Flux.OneHotMatrix{typeof(data)}(x.height, data)
+end
+
+function partition_batch(as::Tuple{Vararg{AbstractArray}}, n::Integer)
+    n_batches = size(as[1])[end]
+    s = div(n_batches, n, RoundUp)
+    return [
+        ntuple(length(as)) do j
+            _view(as[j], fill(:, ndims(as[j]) - 1)..., i:min(i + s - 1, n_batches))
+        end
+        for i in 1:s:n_batches
+    ]
+end
+
+function step!(model, loss_function, opt; nthreads=Threads.nthreads())
     ps = Flux.params(model)
 
-    train_loss, train_accuracy = 0., 0. 
-    for (x, y) in ds_train
-        local ŷ
-        loss, pb = Zygote.pullback(ps) do
-            ŷ = model(x)
-            return loss_function(ŷ, y)
+    train_loss, train_accuracy = Threads.Atomic{Float64}(0), Threads.Atomic{Float64}(0) 
+    gs = Vector{Zygote.Grads}(undef, nthreads)
+    for xy in ds_train
+        parts = partition_batch(xy, nthreads)
+        Threads.@threads for i in eachindex(parts)
+            x, y = parts[i]
+            local ŷ
+            loss, pb = Zygote.pullback(ps) do
+                ŷ = model(x)
+#                Zygote.@ignore @show summary(x), summary(ŷ), summary(y)
+                return loss_function(ŷ, y)
+            end
+            gs[i] = pb(one(loss) * size(y, 2) / size(xy[2], 2))
+            train_loss[] += loss * size(y, 2) / 50000
+            train_accuracy[] += accuracy(ŷ, y) * size(y, 2) / 50000
         end
-        gs = pb(one(loss))
-        Flux.update!(opt, ps, gs)
-        train_loss += loss * size(y, 2) / 50000
-        train_accuracy += accuracy(ŷ, y) * size(y, 2) / 50000
+        foreach(gs -> Flux.update!(opt, ps, gs), gs)
     end
 
     test_loss, test_accuracy = 0., 0. 
@@ -35,7 +58,7 @@ function step!(model, loss_function, opt)
         test_accuracy += accuracy(ŷ, y) * size(y, 2) / 10000
     end
 
-    @show train_loss, train_accuracy
+    @show train_loss[], train_accuracy[]
     @show test_loss, test_accuracy
     nothing
 end
@@ -57,6 +80,7 @@ idx = shuffle(eachindex(imgs))
 idx_train, idx_test = idx[1:50000], idx[50001:end]
 
 ds_train = (prepare_imgs(imgs[idx_train]), Flux.onehotbatch(labels[idx_train], 0:9))
+#global ds_train = DataLoader(ds_train, batchsize=128, shuffle=true)
 global ds_train = DataLoader(ds_train, batchsize=128, shuffle=true)
 
 ds_test = (prepare_imgs(imgs[idx_test]), Flux.onehotbatch(labels[idx_test], 0:9))
@@ -79,4 +103,4 @@ opt = ADAM(0.001)
 using Profile
 Profile.clear_malloc_data()
 
-@time Flux.@epochs 6 step!(model, crossentropy, opt)
+@time Flux.@epochs 6 step!(model, crossentropy, opt; nthreads=2)

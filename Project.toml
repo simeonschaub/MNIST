@@ -1,0 +1,8 @@
+[deps]
+ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
+Coverage = "a2441757-f6aa-5fb2-8edb-039e3f45d037"
+Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+MLJ = "add582a8-e3ab-11e8-2d5e-e98b27df1bc7"
+MLJFlux = "094fc8d1-fd35-5302-93ea-dabda2abf845"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"

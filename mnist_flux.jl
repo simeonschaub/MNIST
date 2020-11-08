@@ -10,7 +10,7 @@ function accuracy(ŷ, y::Flux.OneHotMatrix)
     end / size(ŷ, 2)
 end
 
-function step!(model, loss_function, opt)
+function step!(model, ds_train, ds_test, loss_function, opt)
     ps = Flux.params(model)
 
     train_loss, train_accuracy = 0., 0. 
@@ -55,10 +55,14 @@ labels = Flux.Data.MNIST.labels()
 idx = shuffle(eachindex(imgs))
 idx_train, idx_test = idx[1:50000], idx[50001:end]
 
-ds_train = (prepare_imgs(imgs[idx_train]), Flux.onehotbatch(labels[idx_train], 0:9))
+imgs_train = Flux.Data.MNIST.images()
+labels_train = Flux.Data.MNIST.labels()
+ds_train = (prepare_imgs(imgs_train), Flux.onehotbatch(labels_train, 0:9))
 global ds_train = DataLoader(ds_train, batchsize=128, shuffle=true)
 
-ds_test = (prepare_imgs(imgs[idx_test]), Flux.onehotbatch(labels[idx_test], 0:9))
+imgs_test = Flux.Data.MNIST.images(:test)
+labels_test = Flux.Data.MNIST.labels(:test)
+ds_test = (prepare_imgs(imgs_test), Flux.onehotbatch(labels_test, 0:9))
 global ds_test = DataLoader(ds_test, batchsize=128, shuffle=false)
 
 global n1, n2 = size(first(imgs))
@@ -78,4 +82,6 @@ opt = ADAM(0.001)
 using Profile
 Profile.clear_malloc_data()
 
-@time Flux.@epochs 6 step!(model, crossentropy, opt)
+GC.gc(); GC.gc()
+
+@time Flux.@epochs 6 step!(model, ds_train, ds_test, crossentropy, opt)

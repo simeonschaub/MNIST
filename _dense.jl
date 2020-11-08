@@ -1,4 +1,7 @@
 using LinearAlgebra, Zygote, Flux
+#using PaddedMatrices: jmul!
+
+const jmul! = mul!
 
 struct _Dense{F,S<:AbstractArray,T<:AbstractArray}
     W::S
@@ -24,7 +27,7 @@ end
 function _dense(W, b, σ, cache, x)
     ax = axes(W, 1), Base.tail(axes(x))...
     tmp = get!(() -> similar(x, ax...), cache, (typeof(x), ax...))::typeof(x)
-    mul!(tmp, W, x)
+    jmul!(tmp, W, x)
     tmp .= σ.(tmp .+ b)
     return tmp
 end
@@ -33,12 +36,13 @@ Zygote.@adjoint function _dense(W, b, σ, cache, x)
     ax = axes(W, 1), Base.tail(axes(x))...
     tmp = get!(() -> similar(x, ax...), cache, (typeof(x), ax...))::typeof(x)
 
-    mul!(tmp, W, x)
+    jmul!(tmp, W, x)
     #tmp .+= b
-    res, dσ = Zygote._pullback(__context__, (tmp, b) -> σ.(tmp .+ b), tmp, b)
+    res, dσ = Zygote._pullback(__context__, (Base.@_inline_meta; (tmp, b) -> σ.(tmp .+ b)), tmp, b)
 
+    _dense_pullback = let dσ = dσ, x = x, W = W, b = b, cache = cache
     function _dense_pullback(Δ)
-        _, Δ, tmp_b = dσ(Δ)
+        _, Δ, tmp_b::typeof(b) = dσ(Δ)
 
         ax_W = axes(Δ, 1), axes(x, 1)
         tmp_W = get!(() -> similar(x, ax_W...), cache, (typeof(x), ax_W..., :W))::typeof(x)
@@ -49,10 +53,14 @@ Zygote.@adjoint function _dense(W, b, σ, cache, x)
         ax_x = axes(W, 2), Base.tail(axes(Δ))...
         tmp_x = get!(() -> similar(x, axes(W, 2), axes(Δ, 2)), cache, (typeof(x), axes(W, 2), axes(Δ, 2), :x))::typeof(x)
 
-        mul!(tmp_W, Δ, x')
+        #t = Threads.@spawn jmul!(tmp_W, Δ, x')
+        jmul!(tmp_W, Δ, x')
         #sum!(tmp_b, Δ)
-        mul!(tmp_x, W', Δ)
+        jmul!(tmp_x, W', Δ)
+        #fetch(t)
         return tmp_W, tmp_b, nothing, nothing, tmp_x
     end
+    end
+#    global pb = _dense_pullback
     return res, _dense_pullback
 end

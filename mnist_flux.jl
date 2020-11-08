@@ -2,8 +2,8 @@ using Flux, Zygote
 using Flux: crossentropy, Data.DataLoader
 using Random: shuffle
 
-#include("_dense.jl")
-include("mul.jl")
+include("_dense.jl")
+#include("mul.jl")
 
 function accuracy(ŷ, y::Flux.OneHotMatrix)
     return count(axes(ŷ, 2)) do i
@@ -61,6 +61,7 @@ global ds_train = DataLoader(ds_train, batchsize=128, shuffle=true)
 
 ds_test = (prepare_imgs(imgs[idx_test]), Flux.onehotbatch(labels[idx_test], 0:9))
 global ds_test = DataLoader(ds_test, batchsize=128, shuffle=false)
+#global ds_test = DataLoader(ds_test, batchsize=256, shuffle=false)
 
 global n1, n2 = size(first(imgs))
 end
@@ -69,8 +70,8 @@ n_hidden, m = 128, 10
 
 model = Chain(
     flatten,
-    FDense(n1 * n2, n_hidden, relu),
-    FDense(n_hidden, m),
+    Dense(n1 * n2, n_hidden, relu),
+    Dense(n_hidden, m),
     softmax,
 )
 
@@ -78,5 +79,8 @@ opt = ADAM(0.001)
 
 using Profile
 Profile.clear_malloc_data()
+
+GC.gc()
+GC.gc()
 
 @time Flux.@epochs 6 step!(model, crossentropy, opt)

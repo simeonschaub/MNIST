@@ -1,8 +1,28 @@
-using PaddedMatrices: jmul!
+using PaddedMatrices: jmult!
 using ChainRulesCore
 using Flux
 
-mul(A, B) = jmul!(similar(A, axes(A, 1), Base.tail(axes(B))...), A, B)
+const jmul! = jmult!
+
+function partition(as::Tuple{Vararg{AbstractArray}}, n::Integer)
+    n_batches = size(as[1])[end]
+    s = div(n_batches, n, RoundUp)
+    return [
+        ntuple(length(as)) do j
+            _view(as[j], fill(:, ndims(as[j]) - 1)..., i:min(i + s - 1, n_batches))
+        end
+        for i in 1:s:n_batches
+    ]
+end
+
+function mul(A, B)
+    C = similar(A, axes(A, 1), Base.tail(axes(B))...)
+	parts = partition((C, B), 2)
+	Threads.@threads for (C, B) in parts
+    	jmul!(C, A, B)
+	end
+    return C
+end
 
 function ChainRulesCore.rrule(
     ::typeof(mul),

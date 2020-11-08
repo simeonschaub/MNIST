@@ -3,6 +3,7 @@ using Flux: crossentropy, Data.DataLoader
 using Random: shuffle
 
 #include("_dense.jl")
+include("mul.jl")
 
 function accuracy(ŷ, y::Flux.OneHotMatrix)
     return count(axes(ŷ, 2)) do i
@@ -68,8 +69,8 @@ n_hidden, m = 128, 10
 
 model = Chain(
     flatten,
-    Dense(n1 * n2, n_hidden, relu),
-    Dense(n_hidden, m),
+    FDense(n1 * n2, n_hidden, relu),
+    FDense(n_hidden, m),
     softmax,
 )
 

@@ -1,6 +1,5 @@
 using Flux, Zygote
 using Flux: crossentropy, Data.DataLoader
-using Random: shuffle
 
 #include("_dense.jl")
 
@@ -22,16 +21,16 @@ function step!(model, ds_train, ds_test, loss_function, opt)
         end
         gs = pb(one(loss))
         Flux.update!(opt, ps, gs)
-        train_loss += loss * size(y, 2) / 50000
-        train_accuracy += accuracy(ŷ, y) * size(y, 2) / 50000
+        train_loss += loss * size(y, 2) / size(ds_train.data[1])[end]
+        train_accuracy += accuracy(ŷ, y) * size(y, 2) / size(ds_train.data[1])[end]
     end
 
     test_loss, test_accuracy = 0., 0. 
     for (x, y) in ds_test
         ŷ = model(x)
         loss = loss_function(ŷ, y)
-        test_loss += loss * size(y, 2) / 10000
-        test_accuracy += accuracy(ŷ, y) * size(y, 2) / 10000
+        test_loss += loss * size(y, 2) / size(ds_test.data[1])[end]
+        test_accuracy += accuracy(ŷ, y) * size(y, 2) / size(ds_test.data[1])[end]
     end
 
     @show train_loss, train_accuracy
